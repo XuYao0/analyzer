@@ -38,11 +38,12 @@ description: 编排分析一个 agent 代码库。从入口开始，把程序逻
 
 主线：**从入口追数据流**，把用户输入当数据包，追它经历哪些变换、分叉、汇合。
 
-## 四个角色分工（职责严格分离）
+## 五个角色分工（职责严格分离）
 
 - **scout**：**一次性初始步骤**。分批把整个仓库扫一遍，只写 `.analyzer/inventory.md`（代码概览：每文件一句话作用 + 归属数据流树哪段 + 细读优先级 + 入口定位）。跑完退场，之后不再派。负责"找入口/给全局地图"。
 - **reader**：只做 read+写+报告客观发现。读主 agent 指定的文件，往 map.json 的 `nodes` 数组写一个节点（唯一写入方）+ MAP.md/细节 md，返回该节点输入→处理→输出+客观发现。**不决定下一个节点、不开药方**——那是你的职责。长树时若遇到 inventory 没覆盖的极少数文件，顺手读，不回头派 scout。
 - **reviewer**：只读核查，查事实性错误（指针造假/摘录失真/编造/越界/JSON 破坏/树断链），**不挑遗漏**。
+- **narrator**：**终末渲染器**。树完成 + 终审通过后读 `.analyzer/` 全部底座（map.json/MAP.md/inventory.md/detail），改写成口语化、保留术语、附有依据例子的可读 `OVERVIEW.md`。只读底座 + 核实例子里具体值（必要时瞥一眼源码）、只写 OVERVIEW.md，不碰 map.json/MAP.md/detail、不重新分析、不编造。跑完即终，不参与节点分析。
 - **你（主 agent）**：**做所有判断**——统计仓库规模、决定 scout 分批、读 inventory 定聚焦点、**从入口开始沿数据流决定下一个节点**、判定复杂度是否分层、收敛判定、终审。不亲自读代码下结论、不核查证据、不改 map.json。
 
 为什么职责严格分离：reader 若自己"建议下一步看哪"，就会替你做树的遍历决策，而它视野窄，容易带偏方向。所以——全局地图归 scout（一次性），遍历决策归你，reader 只管 read。
@@ -85,10 +86,24 @@ reviewer 返回事实性错误简报（或"无事实性错误"）。
 ### 4. 推进
 **由你判断**树的下一个节点是什么（参考刚完成节点的 `outputs.to` + reader 的客观发现 + 你的全局认知）。回到步骤 1。数据流追到出口（response/落盘/交接）且没有新分叉时，树就长完了。
 
+## 阶段三：终末可读化（OVERVIEW.md）
+
+树长完、终审通过后，派 `analyzer-narrator` 把**已核查的底座**改写成给人看的可读文档 `OVERVIEW.md`。它的活：读 map.json/MAP.md/inventory.md/detail，**少堆 `func @ :line` 指针墙**、用大白话串数据流、保留 SSIM/UITARS/gpt-4.1 等术语配半句人话、尽量附一个有依据的端到端例子。**它不改 map.json/MAP.md/detail，只写 OVERVIEW.md。**
+
+### 1. 派 narrator 出 OVERVIEW
+`Agent(subagent_type: "analyzer-narrator", prompt: 目标仓库路径)`。它通读底座后写 `.analyzer/OVERVIEW.md`，返回简报（讲了哪几个机制、例子挑了哪条路径 / 哪些值有依据 / 哪些标"示意"、有无存疑）。
+
+### 2. 派 reviewer 核查 OVERVIEW（最多 2 轮）
+OVERVIEW 是可读重述，**最怕编造 / 术语失真 / 例子和代码行为矛盾**。派 `analyzer-reviewer` 核查，prompt 给：目标仓库 + 核查范围 = **OVERVIEW.md 全文**、以 `map.json + detail/*.md` 为事实基准。**特别交代 reviewer**：本轮不涉 map.json 改动、跳过 JSON 合法性检；只查"有没有编造、术语解释有没有说反、例子里的具体值/行为与 map.json+detail+源码是否一致"；reviewer 铁律"不挑遗漏 / 不报措辞"照旧——**别让 review 把可读化又改回技术指针版**，只防它说错事实。
+
+- **第 1 轮有错**：把错误简报转给 narrator 修，修完回步骤 2 再核查。
+- **第 2 轮仍有错**：残留错误写进 map.json `_notes`（标"OVERVIEW: <问题>"），收尾。**不死磕、不改回技术版**。
+- **reviewer 说"无事实性错误"或轮次用尽**：OVERVIEW 定稿，给用户一句话总结。
+
 ## 你的职责边界
 
 **该做**：统计仓库规模、**阶段一分批派 scout 全扫**、从 inventory 确认入口、**阶段二沿数据流决定下一个节点**、判定复杂度是否分层、派 reader/reviewer、转交错误简报、收敛判定、写 `_notes` 残留项、终审一致性。
-**不该做**：亲自读代码下结论（reader）、亲自核查证据（reviewer）、亲自改 map.json（reader 才有写入权）。
+**不该做**：亲自读代码下结论（reader）、亲自核查证据（reviewer）、亲自改 map.json（reader 才有写入权）、亲自写 OVERVIEW（narrator 才写）。
 **例外**：reviewer 的编排反馈（"哪个节点没覆盖、树有断链"）属于流程判断，归你；事实对错归 reviewer。
 
 ## 分层（MAP.md 长度控制）
@@ -103,7 +118,7 @@ reviewer 返回事实性错误简报（或"无事实性错误"）。
 
 ## 产出位置
 
-`<target>/.analyzer/`：`map.json`（必产，整棵树）、`MAP.md`（必产，树的渲染，≤300行/≤10000字符）、`inventory.md`（scout 产出）、`detail/*.md`（分层时按需）。第一个节点前若 map.json 不存在，让 reader 初始化空骨架（`{ "_meta":..., "root":null, "runtime":"", "nodes":[], "_notes":[] }`）。
+`<target>/.analyzer/`：`map.json`（必产，整棵树）、`MAP.md`（必产，树的渲染，≤300行/≤10000字符）、`inventory.md`（scout 产出）、`detail/*.md`（分层时按需）、`OVERVIEW.md`（narrator 终末产出，给人看的可读版；map.json 完整可溯源，OVERVIEW 负责可读）。第一个节点前若 map.json 不存在，让 reader 初始化空骨架（`{ "_meta":..., "root":null, "runtime":"", "nodes":[], "_notes":[] }`）。
 
 ## 启动流程
 1. 向用户确认目标仓库路径（若调用者没给）。
@@ -111,3 +126,4 @@ reviewer 返回事实性错误简报（或"无事实性错误"）。
 3. **阶段一**：分批派 scout 把全仓扫完，产出 `.analyzer/inventory.md`（代码概览 + 入口定位）。确认入口。
 4. **阶段二**：从入口节点开始走数据流闭环，沿数据流一节点一节点推进，长成一棵树。第一个节点前若 map.json 不存在，让 reader 初始化空骨架。
 5. 全部走完后，通读 map.json + MAP.md 做终审：补 `_meta`、`json.load` 验证合法性、检查树的连通性（每个节点 outputs.to 都能找到下游、root 链路完整）、确认 MAP.md 未超长度上限（超了触发分层）、确认 `_notes` 待复核项清晰，给用户一句话总结。
+6. **阶段三（终末可读化）**：终审通过后派 `analyzer-narrator` 出 `OVERVIEW.md`，再派 `analyzer-reviewer` 核查其事实一致性（编造/术语失真/例子矛盾，最多 2 轮），通过即终。详见上文"阶段三"。

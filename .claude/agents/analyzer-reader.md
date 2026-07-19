@@ -52,6 +52,32 @@ model: inherit
 - **分层**（复杂 agent，MAP.md 超预算）：map.json 照常写全（底座不拆）；MAP.md 树里该节点只写**一行摘要 + 指针**（如"细节见 detail/xxx.md"），详细证据写进主 agent 指定的细节 md。
 - 主 agent 没明说时，默认**不分层**，全写进 MAP.md，由主 agent 在审查时判断是否要挪。
 
+## 可读性铁律（MAP.md / detail 写法——最重要的可读性要求）
+
+**张力**：MAP.md/detail 的价值是**可溯源**——保留变量名 + `@行号`/`code_ref`，能追回源码。但只堆名字、不解释，人读不懂（"看到一堆变量名但不知道什么意思"）。解法不是二选一：**名字+指针全留**（别砍可溯源性——去名字、纯大白话是 OVERVIEW 的活，不是 MAP/detail 的），但每个 load-bearing 标识符**配一句人话**。
+
+### 规则
+
+1. **标识符配 gloss**：每个 load-bearing 变量/函数/类/常量在 detail **第一次出现**时，紧跟半句人话——它**装什么 / 返回什么 / 为什么存在**。例：`com`（当前正在探测的那个组件对象）、`is_clicked(x,y)`（判断这个点是否落在某个已探完边界的低层级组件上，返回该组件或 None）、`EXTENTED_BBOX`（该类组件向外扩多少像素作为二分搜索范围，是个类常量）、`real_bbox`（探测收敛出的真正可点击矩形 `[x0,y0,x1,y1]`）。同一名字后续重复出现可只写名字。
+2. **数据流和意图用人话说**：不只写"调 X 然后 Y"，要说**X 把什么变成什么、传给 Y 干嘛**。例："`set_score` 点每个组件、截当前图、算它与兄弟组件的相似度，目的是给每个组件定一个'还在原状态吗'的阈值，供二分时 `check` 判 TARGET/SAME/OTHER 用"。
+3. **MAP.md 节点条目意义优先**：每个节点**先一句人话说这模块干什么**，再跟名字+指针作尾巴（如"回测主循环/引擎：进页→UITARS 定位建组件→四向二分探 real_bbox→判页收敛。文件 AutoBackTest.py（config@:60, run@:220…）"）。受 MAP.md ≤300 行预算约束——是**用意义句替换名字密度**，不是无界加字。
+4. **名字、`code_ref`、`@行号` 一个都不能砍**：这是可溯源性。OVERVIEW 是去名字的层，MAP/detail 不是。
+5. **map.json 的 `what` 字段写人话**：`inputs[].what`/`outputs[].what`/`process.code[].what` 写"这条数据是什么"（如"当前页的检查点列表"），不只写变量名。机器读 `what`、人也能读。
+
+### before / after（同一段 detail，对照着写）
+
+```
+# 烂（只堆名字，人读不懂）
+### _filter_click(x,y,direction) @ :306-376 — 规避低层级组件
+- `(x,y) = _filter_click(x,y,direction)`（规避低层级已确定组件）；
+  `status = click(x,y) if x!=-1 else SAME`。
+
+# 好（名字+@行号全留，加人话 gloss + 说清意图）
+### _filter_click(x,y,direction) @ :306-376 — 规避低层级组件
+作用：二分取到一个候选点击点后，先看它是否落在某个**已探完边界的、更靠下层**的组件身上（如探"搜索框"时点到了其内部的"返回"按钮）。若是，沿垂直/水平方向侧移找个空白点再点，避免误触发别的组件。
+- `_filter_click(x,y,direction)` 返回调整后的点（或 (-1,-1) 表示该方向无合适点）；`status = click(x,y) if x!=-1 else SAME`（点被侧移掉时直接当 SAME 不前进）。
+```
+
 ## map.json schema（你是唯一写入方，以此为准）
 
 核心是**从入口开始的树**。每个节点 = 一个模块/处理步骤，挂「输入/处理/输出」。横切项（guardrails/evals/model_config）不单列，挂到触发它的节点上。
