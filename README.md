@@ -6,7 +6,19 @@
 
 ## 怎么用
 
-安装：把本仓库的 `.claude/` 复制到 `~/.claude/`（全局可用）或你的项目 `.claude/`（局部可用）。装好后得到 **2 个 skill + 4 个 subagent**。
+### Claude Code
+
+把本仓库的 `.claude/` 复制到 `~/.claude/`（全局可用）或项目 `.claude/`（局部可用）。装好后得到 **2 个 skill + 4 个原生 subagent**。
+
+Claude Code 当前会把普通 AgentTool 子 agent 的 extended thinking 硬编码为 disabled；这些 `.claude/agents/*.md` 不能通过 frontmatter 单独打开 thinking。
+
+### Codex
+
+把 `.codex/skills/analyzer` 与 `.codex/skills/analyzer-docs` 复制到 `~/.codex/skills/`，然后重启或刷新 Codex 的 skills。
+
+Codex 不会自动把 `.claude/agents/*.md` 注册为具名 `subagent_type`。Codex 版 `analyzer` skill 把四个角色放在 bundled references 中，运行时使用通用 `spawn_agent`：scout 使用 `medium` reasoning effort，reader/reviewer/narrator 使用 `high`；同时使用 `fork_turns:"none"`，避免完整历史 fork 强制继承父 effort。
+
+Claude frontmatter 的 `model: inherit` 在 Codex 中映射为 spawn 时省略 `model`；`tools:` 白名单无法由 Claude frontmatter 迁移，改由 Codex 角色说明约束写入边界，并由主 agent检查实际改动。
 
 ### 1. 分析一个 agent 仓库
 
@@ -20,7 +32,7 @@
 
 仓库分析过（`.analyzer/` 已存在）后，想问问题（"它怎么实现 X""X 在哪""X 变量什么意思"）：
 
-**先 `/analyzer-docs` 加载这个 skill，再用自然语言向 agent 提问。**
+Claude Code 先用 `/analyzer-docs`；Codex 使用 `$analyzer-docs`，再用自然语言提问。
 
 它会**先文档后源码**：从 OVERVIEW → MAP → detail 逐层定位、用文档回答；只在确认某个具体细节时，才读文档指针指的那一段源码——不会一头扎进源码起手。回答会标注证据来自哪层（OVERVIEW / detail 某段 / 源码 path:line）。
 
