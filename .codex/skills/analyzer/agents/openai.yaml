@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyzer"
+  short_description: "沿数据流分析 agent 代码库并生成完整可溯源文档"
+  default_prompt: "使用 $analyzer 分析这个 agent 仓库并生成完整的 .analyzer 文档。"

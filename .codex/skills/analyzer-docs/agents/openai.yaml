@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyzer Docs"
+  short_description: "从 analyzer 文档定位并解释 agent 实现机制"
+  default_prompt: "使用 $analyzer-docs 解释这个已分析 agent 的实现机制。"
